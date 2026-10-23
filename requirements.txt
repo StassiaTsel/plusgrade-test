@@ -1,0 +1,8 @@
+# Required to run the provided mock services.
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+
+# Suggested for your service — add, remove or replace anything below.
+httpx>=0.27
+redis>=5.0

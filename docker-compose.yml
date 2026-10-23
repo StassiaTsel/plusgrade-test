@@ -1,0 +1,54 @@
+# Runs the two provided mock dependencies. Your service can run either on the
+# host (against localhost:8081 / localhost:8082) or as a third service here.
+services:
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  feature-store:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes: [".:/app"]
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn services.mock_feature_store:app --host 0.0.0.0 --port 8081"
+    ports: ["8081:8081"]
+
+  mock-llm:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes: [".:/app"]
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn services.mock_llm:app --host 0.0.0.0 --port 8082"
+    ports: ["8082:8082"]
+
+  scoring-service:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes: [".:/app"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      FEATURE_STORE_URL: http://feature-store:8081
+      MODEL_URL: http://mock-llm:8082
+    command: >
+      sh -c "pip install -q -r requirements.txt &&
+             uvicorn app:app --host 0.0.0.0 --port 8000"
+    ports: ["8000:8000"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      feature-store:
+        condition: service_started
+      mock-llm:
+        condition: service_started
+
+volumes:
+  redis-data:
